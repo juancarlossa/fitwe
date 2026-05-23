@@ -24,8 +24,17 @@ export async function middleware(request: NextRequest) {
 
   // ── Redirigir GYM fuera de rutas de usuario ──
   // Si un GYM accede a "/dashboard" o rutas B2C, lo enviamos a /admin-gym
-  const userOnlyPaths = ["/dashboard", "/gimnasio", "/entrenamientos", "/nutricion", "/perfil", "/configuracion", "/clases"];
-  const isUserRoute = userOnlyPaths.some(p => pathname.startsWith(p));
+  const userOnlyPaths = [
+    "/dashboard",
+    "/gimnasio",
+    "/entrenamientos",
+    "/nutricion",
+    "/perfil",
+    "/configuracion",
+    "/clases",
+    "/me",
+  ];
+  const isUserRoute = userOnlyPaths.some((p) => pathname.startsWith(p));
 
   if (isUserRoute) {
     const token = await getToken({ req: request });
@@ -55,5 +64,6 @@ export const config = {
     "/perfil/:path*",
     "/configuracion/:path*",
     "/clases/:path*",
+    "/me/:path*",
   ],
 };

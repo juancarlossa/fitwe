@@ -1,17 +1,15 @@
-// app/api/me/route.ts  — ejemplo de ruta protegida
 import { NextRequest, NextResponse } from "next/server";
-import { verifyMobileToken } from "@/lib/mobileAuth";
 import { prisma } from "@/lib/prisma";
 import { getNow } from "@/lib/timeUtils";
+import { requireUser } from "@/lib/helpers/requireUser";
 
 export async function GET(req: NextRequest) {
-  // 1. Verificar token
-  const { payload, error } = await verifyMobileToken(req);
-  if (error) return error;
+  const auth = await requireUser(req);
 
-  // 2. Lógica normal — payload tiene todos los campos del usuario
+  if ("error" in auth) return auth.error;
+
   const user = await prisma.user.findUnique({
-    where: { id: payload.id },
+    where: { id: auth.userId },
     select: {
       id: true,
       name: true,
@@ -27,6 +25,7 @@ export async function GET(req: NextRequest) {
   });
 
   if (!user) {
+    console.error("[Error] Usuario no encontrado:", auth.userId);
     return NextResponse.json(
       { error: "Usuario no encontrado" },
       { status: 404 },

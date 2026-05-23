@@ -1,18 +1,16 @@
-import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { NextRequest, NextResponse } from "next/server";
+
 import { prisma } from "@/lib/prisma";
 import { getNow } from "@/lib/timeUtils";
+import { requireUser } from "@/lib/helpers/requireUser";
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const auth = await requireUser(request);
 
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "No autorizado" }, { status: 401 });
-    }
+    if ("error" in auth) return auth.error;
 
-    const userId = session.user.id;
+    const userId = auth.userId;
     const { searchParams } = new URL(request.url);
     const dateParam = searchParams.get("date");
 
@@ -23,7 +21,10 @@ export async function GET(request: Request) {
     });
 
     if (!user) {
-      return NextResponse.json({ message: "Usuario no encontrado" }, { status: 404 });
+      return NextResponse.json(
+        { message: "Usuario no encontrado" },
+        { status: 404 },
+      );
     }
 
     // Fechas clave
@@ -47,7 +48,7 @@ export async function GET(request: Request) {
     });
 
     let totalWeeklyMinutes = 0;
-    const DAYS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+    const DAYS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
     const weeklyChartDataMap: Record<string, number> = {};
 
     // Inicializar los últimos 7 días en 0 con etiquetas consistentes
@@ -58,7 +59,7 @@ export async function GET(request: Request) {
       weeklyChartDataMap[dayStr] = 0;
     }
 
-    weeklySessions.forEach(s => {
+    weeklySessions.forEach((s) => {
       if (s.endTime && s.startTime) {
         const diffMs = s.endTime.getTime() - s.startTime.getTime();
         const mins = Math.round(diffMs / 60000);
@@ -80,7 +81,7 @@ export async function GET(request: Request) {
       const dayStr = DAYS[d.getDay()];
       weeklyChartData.push({
         day: dayStr,
-        minutos: weeklyChartDataMap[dayStr]
+        minutos: weeklyChartDataMap[dayStr],
       });
     }
 
@@ -95,9 +96,9 @@ export async function GET(request: Request) {
         startTime: true,
       },
     });
-    const monthlyDates = monthlySessions.map(s => s.startTime.toISOString());
+    const monthlyDates = monthlySessions.map((s) => s.startTime.toISOString());
 
-    let sessionsWhereClause: any = {
+    const sessionsWhereClause: any = {
       userId,
       endTime: { not: null },
     };
@@ -115,35 +116,40 @@ export async function GET(request: Request) {
     // Todos los entrenamientos (o filtrados por fecha)
     const last5SessionsRaw = await prisma.workoutSession.findMany({
       where: sessionsWhereClause,
-      orderBy: { startTime: 'desc' },
+      orderBy: { startTime: "desc" },
       include: {
         routine: { select: { name: true } },
         workoutSets: {
           where: { isCompleted: true },
-          select: { 
-            weight: true, 
+          select: {
+            weight: true,
             reps: true,
             isCompleted: true,
             exercise: {
               select: {
                 name: true,
                 muscleGroup: true,
-                equipment: true
-              }
-            }
+                equipment: true,
+              },
+            },
           },
-          orderBy: { id: 'asc' }
+          orderBy: { id: "asc" },
         },
       },
     });
 
-    const recentSessions = last5SessionsRaw.map(s => {
+    const recentSessions = last5SessionsRaw.map((s) => {
       let durationMinutes = 0;
       if (s.endTime && s.startTime) {
-        durationMinutes = Math.round((s.endTime.getTime() - s.startTime.getTime()) / 60000);
+        durationMinutes = Math.round(
+          (s.endTime.getTime() - s.startTime.getTime()) / 60000,
+        );
       }
 
-      const totalVolume = s.workoutSets.reduce((acc, set) => acc + (set.weight * set.reps), 0);
+      const totalVolume = s.workoutSets.reduce(
+        (acc, set) => acc + set.weight * set.reps,
+        0,
+      );
 
       return {
         id: s.id,
@@ -169,7 +175,7 @@ export async function GET(request: Request) {
     console.error("Error fetching profile data:", error);
     return NextResponse.json(
       { error: "Error interno del servidor" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
